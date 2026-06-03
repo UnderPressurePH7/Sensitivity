@@ -1,4 +1,4 @@
-﻿package com.sensitivity
+﻿package com.github.under.sensitivity
 {
    import flash.display.DisplayObject;
    import flash.display.DisplayObjectContainer;
