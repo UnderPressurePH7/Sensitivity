@@ -21,6 +21,14 @@ _isViewRegistered = False
 _isEventListenerRegistered = False
 
 
+def _getTargetNamespaces():
+    namespaces = [APP_NAME_SPACE.SF_LOBBY]
+    battleNamespace = getattr(APP_NAME_SPACE, 'SF_BATTLE', None)
+    if battleNamespace is not None:
+        namespaces.append(battleNamespace)
+    return namespaces
+
+
 class SensitivityView(View):
 
     def _populate(self):
@@ -32,20 +40,28 @@ class SensitivityView(View):
         super(SensitivityView, self)._dispose()
 
 
-def _loadInjector():
-    app = ServicesLocator.appLoader.getApp(APP_NAME_SPACE.SF_LOBBY)
+def _loadInjector(namespace):
+    if namespace == APP_NAME_SPACE.SF_LOBBY:
+        app = ServicesLocator.appLoader.getApp(APP_NAME_SPACE.SF_LOBBY)
+    else:
+        app = ServicesLocator.appLoader.getDefBattleApp()
     if app is not None:
         app.loadView(SFViewLoadParams(INJECTOR_LINKAGE))
-        logger.debug('Sensitivity injector load requested')
+        logger.debug('Sensitivity injector load requested for %s', namespace)
+
+
+def _loadInjectors():
+    for namespace in _getTargetNamespaces():
+        _loadInjector(namespace)
 
 
 def _onAppInitialized(event):
-    if event.ns != APP_NAME_SPACE.SF_LOBBY:
+    if event.ns not in _getTargetNamespaces():
         return
     try:
-        _loadInjector()
+        _loadInjector(event.ns)
     except Exception:
-        logger.exception('Sensitivity injector load failed')
+        logger.exception('Sensitivity injector load failed for %s', event.ns)
 
 
 def init():
@@ -64,7 +80,7 @@ def init():
             _isEventListenerRegistered = True
             logger.debug('Sensitivity lifecycle listener registered')
         try:
-            _loadInjector()
+            _loadInjectors()
         except Exception:
             logger.exception('Sensitivity immediate injector load failed')
         _isInitialized = True

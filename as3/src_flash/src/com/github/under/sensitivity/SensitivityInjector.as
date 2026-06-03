@@ -13,7 +13,7 @@
    
    public class SensitivityInjector extends AbstractView
    {
-      private static const LABEL_OFFSET_X:int = 20;
+      private static const LABEL_OFFSET_X:int = 4;
       private static const LABEL_OFFSET_Y:int = -5;
       
       private var _controls:ControlsSettings = null;
