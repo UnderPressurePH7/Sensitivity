@@ -1,4 +1,4 @@
-﻿package com.github.under.sensitivity
+﻿package com.sensitivity
 {
    import flash.display.DisplayObjectContainer;
    import flash.text.AntiAliasType;
@@ -41,5 +41,4 @@
       }
    }
 }
-
 

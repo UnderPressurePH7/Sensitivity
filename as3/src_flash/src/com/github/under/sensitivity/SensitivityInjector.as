@@ -1,4 +1,4 @@
-﻿package com.github.under.sensitivity
+﻿package com.sensitivity
 {
    import flash.display.DisplayObject;
    import flash.display.DisplayObjectContainer;
@@ -13,6 +13,9 @@
    
    public class SensitivityInjector extends AbstractView
    {
+      private static const LABEL_OFFSET_X:int = 20;
+      private static const LABEL_OFFSET_Y:int = -5;
+      
       private var _controls:ControlsSettings = null;
       private var _labels:Dictionary = null;
       
@@ -177,8 +180,8 @@
          {
             return;
          }
-         param2.x = param1.x + param1.width + 8;
-         param2.y = param1.y - 5;
+         param2.x = param1.x + param1.width + LABEL_OFFSET_X;
+         param2.y = param1.y + LABEL_OFFSET_Y;
       }
       
       private function onSliderValueChange(param1:SliderEvent) : void
@@ -206,4 +209,3 @@
       }
    }
 }
-

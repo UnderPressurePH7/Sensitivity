@@ -11,7 +11,7 @@ from gui.shared.events import AppLifeCycleEvent
 from gui.shared.personality import ServicesLocator
 
 logger = logging.getLogger('Sensitivity Values')
-logger.setLevel(logging.DEBUG if os.path.isfile('.debug_mods') else logging.ERROR)
+logger.setLevel(logging.DEBUG if os.path.isfile('.debug_sensitivity') else logging.ERROR)
 
 INJECTOR_LINKAGE = 'SensitivityInjector'
 SWF_FILE = 'SensitivityInjector.swf'
