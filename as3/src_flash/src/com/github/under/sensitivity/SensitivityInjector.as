@@ -3,7 +3,9 @@
    import flash.display.DisplayObject;
    import flash.display.DisplayObjectContainer;
    import flash.events.Event;
+   import flash.utils.clearTimeout;
    import flash.utils.Dictionary;
+   import flash.utils.setTimeout;
    import net.wg.gui.components.controls.Slider;
    import net.wg.gui.lobby.settings.ControlsSettings;
    import net.wg.infrastructure.base.AbstractView;
@@ -15,9 +17,15 @@
    {
       private static const LABEL_OFFSET_X:int = 0;
       private static const LABEL_OFFSET_Y:int = -5;
+      private static const ATTACH_RETRY_DELAY:int = 150;
+      private static const ATTACH_RETRY_ATTEMPTS:int = 20;
+      private static const IDLE_ATTACH_RETRY_DELAY:int = 1000;
       
       private var _controls:ControlsSettings = null;
       private var _labels:Dictionary = null;
+      private var _attachRetryTimer:uint = 0;
+      private var _attachRetryAttempts:int = 0;
+      private var _attachRetryIdle:Boolean = false;
       
       public function SensitivityInjector()
       {
@@ -37,13 +45,14 @@
          {
             App.instance.stage.addEventListener(Event.RESIZE,this.onStageResize,false,0,true);
          }
-         addEventListener(Event.ENTER_FRAME,this.onEnterFrame,false,0,true);
-         this.attachToControls();
+         if(!this.attachToControls())
+         {
+            this.startAttachRetry();
+         }
       }
       
       override protected function onDispose() : void
       {
-         removeEventListener(Event.ENTER_FRAME,this.onEnterFrame);
          var manager:ContainerManagerBase = App.containerMgr as ContainerManagerBase;
          if(manager != null && manager.loader != null)
          {
@@ -54,6 +63,7 @@
             App.instance.stage.removeEventListener(Event.RESIZE,this.onStageResize);
          }
          this.detachLabels();
+         this.clearAttachRetry();
          this._controls = null;
          this._labels = null;
          super.onDispose();
@@ -61,38 +71,106 @@
       
       private function onViewLoaded(param1:LoaderEvent) : void
       {
-         this.attachToControls();
-      }
-      
-      private function onEnterFrame(param1:Event) : void
-      {
-         if(this._controls != null && this._controls.stage == null)
+         if(!this.attachToControls())
          {
-            this.detachLabels();
-            this._controls = null;
+            this.startAttachRetry();
          }
-         this.attachToControls();
       }
       
       private function onStageResize(param1:Event) : void
       {
+         if(this._controls == null)
+         {
+            if(!this.attachToControls())
+            {
+               this.startAttachRetry();
+            }
+            return;
+         }
          this.positionLabels();
       }
       
-      private function attachToControls() : void
+      private function attachToControls() : Boolean
       {
          var controls:ControlsSettings = this.findControls(App.instance as DisplayObjectContainer);
-         if(controls == null || controls == this._controls)
+         if(controls == null)
          {
-            return;
+            return false;
+         }
+         if(controls == this._controls)
+         {
+            this.positionLabels();
+            return true;
          }
          this.detachLabels();
+         this.clearAttachRetry();
          this._controls = controls;
+         this._controls.addEventListener(Event.REMOVED_FROM_STAGE,this.onControlsRemoved,false,0,true);
          this.bindSlider(controls.mouseArcadeSensSlider);
          this.bindSlider(controls.mouseSniperSensSlider);
          this.bindSlider(controls.mouseStrategicSensSlider);
          this.bindSlider(controls.mouseAssistAimSensSlider);
          this.bindSlider(controls.mouseDeathFreecamSensSlider);
+         return true;
+      }
+
+      private function startAttachRetry() : void
+      {
+         if(this._controls != null)
+         {
+            return;
+         }
+         this.clearAttachRetry();
+         this._attachRetryIdle = false;
+         this.scheduleAttachRetry();
+      }
+
+      private function scheduleAttachRetry() : void
+      {
+         if(this._attachRetryTimer != 0)
+         {
+            clearTimeout(this._attachRetryTimer);
+         }
+         this._attachRetryTimer = setTimeout(this.checkAttachRetry,this._attachRetryIdle ? IDLE_ATTACH_RETRY_DELAY : ATTACH_RETRY_DELAY);
+      }
+
+      private function checkAttachRetry() : void
+      {
+         this._attachRetryTimer = 0;
+         if(this._controls != null)
+         {
+            return;
+         }
+         this._attachRetryAttempts++;
+         if(this._attachRetryAttempts >= ATTACH_RETRY_ATTEMPTS)
+         {
+            this._attachRetryIdle = true;
+         }
+         if(!this.attachToControls())
+         {
+            this.scheduleAttachRetry();
+         }
+      }
+
+      private function clearAttachRetry() : void
+      {
+         if(this._attachRetryTimer != 0)
+         {
+            clearTimeout(this._attachRetryTimer);
+            this._attachRetryTimer = 0;
+         }
+         this._attachRetryAttempts = 0;
+         this._attachRetryIdle = false;
+      }
+
+      private function onControlsRemoved(param1:Event) : void
+      {
+         if(this._controls != null)
+         {
+            this._controls.removeEventListener(Event.REMOVED_FROM_STAGE,this.onControlsRemoved);
+         }
+         this.detachLabels();
+         this._controls = null;
       }
       
       private function findControls(param1:DisplayObjectContainer) : ControlsSettings
@@ -146,6 +224,10 @@
          if(this._labels == null)
          {
             return;
+         }
+         if(this._controls != null)
+         {
+            this._controls.removeEventListener(Event.REMOVED_FROM_STAGE,this.onControlsRemoved);
          }
          for(slider in this._labels)
          {

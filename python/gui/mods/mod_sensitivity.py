@@ -19,6 +19,8 @@ SWF_FILE = 'SensitivityInjector.swf'
 _isInitialized = False
 _isViewRegistered = False
 _isEventListenerRegistered = False
+_loadedInjectorNamespaces = set()
+_activeViews = []
 
 
 def _getTargetNamespaces():
@@ -33,21 +35,36 @@ class SensitivityView(View):
 
     def _populate(self):
         super(SensitivityView, self)._populate()
+        if self not in _activeViews:
+            _activeViews.append(self)
         logger.debug('Sensitivity injector populated')
 
     def _dispose(self):
+        global _loadedInjectorNamespaces
+        if self in _activeViews:
+            _activeViews.remove(self)
+        if not _activeViews:
+            _loadedInjectorNamespaces.clear()
         logger.debug('Sensitivity injector disposed')
         super(SensitivityView, self)._dispose()
 
 
 def _loadInjector(namespace):
-    if namespace == APP_NAME_SPACE.SF_LOBBY:
-        app = ServicesLocator.appLoader.getApp(APP_NAME_SPACE.SF_LOBBY)
-    else:
+    global _loadedInjectorNamespaces
+    if namespace in _loadedInjectorNamespaces:
+        logger.debug('Sensitivity injector load skipped, already loaded for %s', namespace)
+        return
+    app = ServicesLocator.appLoader.getApp(namespace)
+    if app is None and namespace != APP_NAME_SPACE.SF_LOBBY:
         app = ServicesLocator.appLoader.getDefBattleApp()
     if app is not None:
-        app.loadView(SFViewLoadParams(INJECTOR_LINKAGE))
-        logger.debug('Sensitivity injector load requested for %s', namespace)
+        try:
+            app.loadView(SFViewLoadParams(INJECTOR_LINKAGE))
+            _loadedInjectorNamespaces.add(namespace)
+            logger.debug('Sensitivity injector load requested for %s', namespace)
+        except Exception:
+            _loadedInjectorNamespaces.discard(namespace)
+            raise
 
 
 def _loadInjectors():
@@ -92,11 +109,14 @@ def init():
 def fini():
     global _isInitialized
     global _isEventListenerRegistered
+    global _loadedInjectorNamespaces
     try:
         if _isEventListenerRegistered:
             g_eventBus.removeListener(AppLifeCycleEvent.INITIALIZED, _onAppInitialized, scope=EVENT_BUS_SCOPE.GLOBAL)
             _isEventListenerRegistered = False
             logger.debug('Sensitivity lifecycle listener removed')
+        _activeViews[:] = []
+        _loadedInjectorNamespaces.clear()
         _isInitialized = False
         logger.debug('Sensitivity unloaded')
     except Exception:
