@@ -3,7 +3,7 @@ import os
 
 from frameworks.wulf import WindowLayer
 from gui.app_loader.settings import APP_NAME_SPACE
-from gui.Scaleform.framework import g_entitiesFactories, ScopeTemplates, ViewSettings
+from gui.Scaleform.framework import ScopeTemplates, ViewSettings
 from gui.Scaleform.framework.entities.View import View
 from gui.Scaleform.framework.managers.loaders import SFViewLoadParams
 from gui.shared import g_eventBus, EVENT_BUS_SCOPE
@@ -11,7 +11,24 @@ from gui.shared.events import AppLifeCycleEvent
 from gui.shared.personality import ServicesLocator
 
 logger = logging.getLogger('Sensitivity Values')
-logger.setLevel(logging.DEBUG if os.path.isfile('.debug_sensitivity') else logging.ERROR)
+
+class _DebugAsInfo(logging.Filter):
+    def filter(self, record):
+        if record.levelno == logging.DEBUG:
+            record.levelno = logging.INFO
+            record.levelname = 'INFO'
+            try:
+                record.msg = '[DEBUG] ' + record.msg
+            except TypeError:
+                record.msg = '[DEBUG] %s' % (record.msg,)
+        return True
+
+
+_debugEnabled = os.path.isfile('.debug_mods')
+logger.setLevel(logging.DEBUG if _debugEnabled else logging.ERROR)
+
+if _debugEnabled:
+    logger.addFilter(_DebugAsInfo())
 
 INJECTOR_LINKAGE = 'SensitivityInjector'
 SWF_FILE = 'SensitivityInjector.swf'
@@ -21,6 +38,20 @@ _isViewRegistered = False
 _isEventListenerRegistered = False
 _loadedInjectorNamespaces = set()
 _activeViews = []
+
+
+def _getEntitiesFactory():
+    """Resolve the Scaleform view registry for WoT 2.4.1 and older clients."""
+    try:
+        from gui.Scaleform.framework import g_entitiesFactories
+        return g_entitiesFactories
+    except ImportError:
+        from helpers import dependency
+        from skeletons.gui.impl import IGuiLoader
+        guiLoader = dependency.instance(IGuiLoader)
+        if guiLoader is None:
+            raise RuntimeError('IGuiLoader is not available yet')
+        return guiLoader.entitiesFactory
 
 
 def _getTargetNamespaces():
@@ -89,7 +120,7 @@ def init():
         return
     try:
         if not _isViewRegistered:
-            g_entitiesFactories.addSettings(ViewSettings(INJECTOR_LINKAGE, SensitivityView, SWF_FILE, WindowLayer.WINDOW, None, ScopeTemplates.GLOBAL_SCOPE))
+            _getEntitiesFactory().addSettings(ViewSettings(INJECTOR_LINKAGE, SensitivityView, SWF_FILE, WindowLayer.WINDOW, None, ScopeTemplates.GLOBAL_SCOPE))
             _isViewRegistered = True
             logger.debug('Sensitivity view registered')
         if not _isEventListenerRegistered:
